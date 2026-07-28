@@ -6,6 +6,27 @@ a two-layer mixer, and a sleep timer, in a black-and-white UI that matches Light
 Repo name **LightNoise**, launcher label **White Noise**, applicationId
 `com.gios.lightnoise`.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/sounds.png" width="250" alt="The sound list, with brown noise selected"><br>
+      <sub>Twelve sounds, each with what it is</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/mix.png" width="250" alt="The two-layer mixer with a level bar"><br>
+      <sub>Two layers, each with its own level</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/timer.png" width="250" alt="The sleep timer counting down from fifteen minutes"><br>
+      <sub>Sleep timer, fading out at the end</sub>
+    </td>
+  </tr>
+</table>
+
+The now-playing bar and the tab row stay put on all three screens. Taken on a Light Phone III.
+
 ## Install
 
 Grab the APK from the [latest release](../../releases/latest) and sideload it:
@@ -120,3 +141,24 @@ only findable by ear:
   leave a quiet bed within 2 % of unity, and release fully within a second.
 
 CI runs the whole suite before it builds the APK.
+
+## The gi-os Light App collection
+
+Twelve tools for the Light Phone III, all open source, all built in one run.
+
+| Tool | What it does | Built on |
+| --- | --- | --- |
+| [LightPass](https://github.com/gi-os/LightPass) | Photograph a movie ticket, keep the stub | Plain Android |
+| [LightQR](https://github.com/gi-os/LightQR) | QR scanner, plus a browser generator | Plain Android |
+| [LightRSS](https://github.com/gi-os/LightRSS) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
+| [LightNYCSubway](https://github.com/gi-os/LightNYCSubway) | Live MTA subway arrivals | light-sdk fork |
+| [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
+| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
+| [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
+| [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
+| [LightFastread](https://github.com/gi-os/LightFastread) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
+| **LightNoise** (this repo) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
+| [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |
+
+The Light Phone does not sponsor or endorse any of these. Licences vary per repo.
