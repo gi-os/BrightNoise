@@ -20,6 +20,17 @@ class NoiseEngine {
 
         /** Slider moves are smoothed over roughly this long. */
         private const val RAMP_SECONDS = 0.08f
+
+        /**
+         * Makeup gain applied after the layer mix.
+         *
+         * Generators are individually normalised to 0.12 RMS, which at unity put the
+         * app about 10 dB under music and podcasts — you had to turn the phone all the
+         * way up. 1.7x lands a single layer near -14 dBFS RMS at full master, which is
+         * roughly where mastered music sits. The transients this creates are the
+         * [Limiter]'s job; without it this would just clip.
+         */
+        private const val MAKEUP = 1.7f
     }
 
     @Volatile private var genA: Generator? = null
@@ -100,6 +111,7 @@ class NoiseEngine {
         val bufB = FloatArray(BLOCK)
         val mix = FloatArray(BLOCK)
         val step = 1f / (RAMP_SECONDS * SAMPLE_RATE / BLOCK)
+        val limiter = Limiter()
 
         track.play()
         try {
@@ -129,7 +141,9 @@ class NoiseEngine {
                     ga += incA; gb += incB; gm += incM
                     // Perceptual taper: a linear slider on raw amplitude feels
                     // like it does nothing until the last quarter of its travel.
-                    mix[i] = softClip((bufA[i] * ga * ga + bufB[i] * gb * gb) * gm * gm)
+                    val dry = (bufA[i] * ga * ga + bufB[i] * gb * gb) * gm * gm * MAKEUP
+                    // Limit first, then soft clip whatever the limiter's attack let by.
+                    mix[i] = softClip(limiter.process(dry))
                 }
                 curA = dA; curB = dB; curMaster = dM
 

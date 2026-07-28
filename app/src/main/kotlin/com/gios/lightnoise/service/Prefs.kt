@@ -28,7 +28,7 @@ internal object Prefs {
             pickB = decode(p.getString("b", null)),
             levelA = p.getFloat("la", 1f),
             levelB = p.getFloat("lb", 0.45f),
-            master = p.getFloat("m", 0.7f),
+            master = p.getFloat("m", 0.9f),
             timerMinutes = p.getInt("timer", 0),
         )
     }

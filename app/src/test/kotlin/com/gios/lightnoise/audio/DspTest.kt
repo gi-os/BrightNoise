@@ -236,8 +236,82 @@ class DspTest {
         // noise this replaced spread much wider, which is part of why it read as fake.
         val cafe = bandFraction(SoundId.CAFE, 300f, 3400f)
         val pink = bandFraction(SoundId.PINK, 300f, 3400f)
-        assertTrue("Cafe is not concentrated in the speech band ($cafe)", cafe > 0.38)
-        assertTrue("Cafe is no more speech-shaped than pink noise ($cafe vs $pink)", cafe > pink * 1.5)
+        assertTrue("Cafe is not concentrated in the speech band ($cafe)", cafe > 0.45)
+        assertTrue("Cafe is no more speech-shaped than pink noise ($cafe vs $pink)", cafe > pink * 1.8)
+    }
+
+    @Test
+    fun cafeDoesNotGrowl() {
+        // The second attempt at the cafe sounded, in Gio's words, demonic. Two
+        // measurable causes, both guarded here.
+        //
+        // One: energy down in the chest register. Sharp formants with F1 dipping to
+        // 300 Hz resonate like a throat.
+        val low = bandFraction(SoundId.CAFE, 20f, 250f)
+        assertTrue("Cafe has too much chest-register energy ($low)", low < 0.20)
+
+        // Two: the level lurching. Deep syllable gating on a few loud talkers made
+        // individual voices step out of the mix and read as speech from something
+        // that cannot speak. A room heard from a table away is smoother than pink
+        // noise on this measure, not rougher.
+        val cafe = envelope(SoundId.CAFE, secs = 60, windowSec = 0.2f)
+        val pink = envelope(SoundId.PINK, secs = 60, windowSec = 0.2f)
+        assertTrue("Cafe lurches: ${cv(cafe)} vs pink ${cv(pink)}", cv(cafe) < cv(pink))
+    }
+
+    /** Coefficient of variation of an envelope. */
+    private fun cv(env: FloatArray): Double {
+        val mean = env.average()
+        val variance = env.sumOf { val d = it - mean; d * d } / env.size
+        return sqrt(variance) / mean
+    }
+
+    @Test
+    fun limiterHoldsTheCeilingOnTransients() {
+        // The point of the look-ahead. A plain feedforward limiter lets a transient's
+        // leading edge through, which is what was hard-clipping rain and campfire once
+        // the makeup gain went in.
+        val limiter = Limiter(threshold = 0.9f)
+        val rng = Rng(31337)
+        var peak = 0f
+
+        // Quiet bed with a hard spike every 40 ms, well over the ceiling.
+        for (i in 0 until SAMPLE_RATE * 4) {
+            val bed = rng.bipolar() * 0.2f
+            val spike = if (i % (SAMPLE_RATE / 25) == 0) 2.5f else 0f
+            val y = limiter.process(bed + spike)
+            if (abs(y) > peak) peak = abs(y)
+        }
+        assertTrue("Limiter let $peak through against a 0.9 ceiling", peak < 1.0f)
+    }
+
+    @Test
+    fun limiterLeavesQuietSignalAlone() {
+        // It must not squash the bed, or every sound loses its level advantage.
+        val limiter = Limiter(threshold = 0.9f)
+        val rng = Rng(99)
+        var sqIn = 0.0
+        var sqOut = 0.0
+        // Skip the look-ahead delay's worth of leading zeros before measuring.
+        repeat(1000) { limiter.process(rng.bipolar() * 0.3f) }
+        repeat(SAMPLE_RATE * 2) {
+            val x = rng.bipolar() * 0.3f
+            val y = limiter.process(x)
+            sqIn += x.toDouble() * x
+            sqOut += y.toDouble() * y
+        }
+        val ratio = sqrt(sqOut / sqIn)
+        assertTrue("Limiter is squashing a quiet signal (gain $ratio)", ratio > 0.98)
+    }
+
+    @Test
+    fun limiterRecoversAfterATransient() {
+        val limiter = Limiter(threshold = 0.9f)
+        repeat(500) { limiter.process(3f) }
+        assertTrue("Limiter did not pull down (${limiter.currentGain})", limiter.currentGain < 0.4f)
+        // Release is 180 ms, so a second of silence must bring it back.
+        repeat(SAMPLE_RATE) { limiter.process(0f) }
+        assertTrue("Limiter never released (${limiter.currentGain})", limiter.currentGain > 0.99f)
     }
 
     @Test

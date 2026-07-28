@@ -37,7 +37,9 @@ data class NoiseState(
     val pickB: Pick = Pick.None,
     val levelA: Float = 1f,
     val levelB: Float = 0.45f,
-    val master: Float = 0.7f,
+    // Defaults high on purpose: at 0.7 the app still needed the phone's volume
+    // pushed to the top to match anything else.
+    val master: Float = 0.9f,
     /** Minutes, or 0 for no timer. */
     val timerMinutes: Int = 0,
     /** Wall clock ms when playback should end, 0 when no timer is armed. */

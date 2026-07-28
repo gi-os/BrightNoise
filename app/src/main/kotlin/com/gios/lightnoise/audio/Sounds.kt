@@ -205,11 +205,16 @@ private class OceanGen(seed: Long) : Generator {
     }
 }
 
-/** Stream: two noise bands plus resonant gurgles that drift in pitch. */
+/**
+ * Stream: two noise bands plus resonant gurgles that drift in pitch.
+ *
+ * Pitched down about a third from the first cut — a bigger body of water over bigger
+ * stones. The bands were at 2.4 kHz and 900 Hz, which is a thin trickle.
+ */
 private class StreamGen(seed: Long) : Generator {
     private val rng = Rng(seed)
-    private val high = Svf(2400f, 0.9f)
-    private val mid = Svf(900f, 0.8f)
+    private val high = Svf(1650f, 0.9f)
+    private val mid = Svf(620f, 0.8f)
     private val gurgles = VoicePool(10)
     private val clock = EventClock(14f, rng)
     private val tremolo = SlowNoise(7f, rng)
@@ -220,16 +225,16 @@ private class StreamGen(seed: Long) : Generator {
             val w = rng.bipolar()
             var s = high.bandpass(w) * 0.85f + mid.bandpass(w) * 0.7f
             if (clock.tick()) {
-                val centre = 350f + 700f * (drift.next() * 0.5f + 0.5f).coerceIn(0f, 1f)
+                val centre = 240f + 480f * (drift.next() * 0.5f + 0.5f).coerceIn(0f, 1f)
                 gurgles.trigger(
                     hz = centre * rng.range(0.7f, 2.4f),
                     q = rng.range(6f, 16f),
                     amp = rng.nextFloat().pow(1.5f) * 0.55f,
-                    tauSec = rng.range(0.02f, 0.09f),
+                    tauSec = rng.range(0.025f, 0.11f),
                 )
             }
             s += gurgles.next(rng.bipolar()) * 0.9f
-            out[i] = s * 0.50f * (0.85f + 0.25f * (tremolo.next() * 0.5f + 0.5f).coerceIn(0f, 1f))
+            out[i] = s * 0.575f * (0.85f + 0.25f * (tremolo.next() * 0.5f + 0.5f).coerceIn(0f, 1f))
         }
     }
 }
@@ -379,34 +384,34 @@ private class CampfireGen(seed: Long) : Generator {
 // ------------------------------------------------------------------------------- room
 
 /**
- * One indistinct talker. Noise through three formant resonators, gated by a syllable
- * envelope, with pauses between phrases.
+ * One indistinct talker: noise through two soft formants, gated at syllable rate.
  *
- * Bandpassed noise on its own does not read as speech no matter how you modulate it —
- * the ear is listening for formants and for syllable rhythm, and it notices when
- * neither is there. Each speaker gets its own vocal-tract size and speaking rate, and
- * the formants glide between syllables rather than jumping, which is what stops the
- * result sounding like a filter sweep.
+ * Every knob here is set away from "realistic single voice" on purpose. Sharp formants
+ * on unpitched noise, gated deeply and slowly, is the recipe for a growl — the ear
+ * hears vowel resonances with no pitch behind them and reads it as whispering or worse.
+ * So: low Q, a floor under the envelope so syllables never fully close, fast glides,
+ * and F1 kept off the chest register. One of these alone still sounds odd. A dozen of
+ * them at low level do not, which is the point — a cafe heard from a table away is a
+ * blur, and no individual voice should ever step out of it.
  */
 private class Talker(private val rng: Rng, private val level: Float) {
 
     private val pink = Pink(rng)
-    private val f1 = Svf(500f, 7f)
-    private val f2 = Svf(1500f, 9f)
-    private val f3 = Svf(2600f, 11f)
+    // Q around 3 colours the noise without singing. The first cut used 7–11.
+    private val f1 = Svf(650f, 3.0f)
+    private val f2 = Svf(1600f, 3.5f)
 
-    // Scales every formant: a shorter tract puts them all higher.
-    private val tract = rng.range(0.82f, 1.22f)
-    private val syllablesPerSec = rng.range(2.6f, 4.6f)
+    private val tract = rng.range(0.85f, 1.18f)
+    // Faster than real speech; overlapping talkers then blur into a wash.
+    private val syllablesPerSec = rng.range(3.6f, 6.2f)
 
-    private var target1 = 500f
-    private var target2 = 1500f
-    private var target3 = 2600f
-    private val glide1 = OnePole(11f)
-    private val glide2 = OnePole(11f)
-    private val glide3 = OnePole(11f)
+    private var target1 = 650f
+    private var target2 = 1600f
+    // 30 Hz, not 11: slow glides drag the formants into a moan.
+    private val glide1 = OnePole(30f)
+    private val glide2 = OnePole(30f)
 
-    private var envelope = 0f
+    private var envelope = FLOOR
     private var envelopeStep = 0f
     private var framesLeft = 0
     private var phraseLeft = (SAMPLE_RATE * rng.range(1f, 4f)).toInt()
@@ -414,55 +419,55 @@ private class Talker(private val rng: Rng, private val level: Float) {
 
     fun next(): Float {
         if (--framesLeft <= 0) advance()
-
-        // Attack and release both take about 35 ms, so syllables run together the way
-        // connected speech does instead of stuttering.
-        envelope = (envelope + envelopeStep).coerceIn(0f, 1f)
+        envelope = (envelope + envelopeStep).coerceIn(FLOOR, 1f)
 
         val p = pink.next()
-        var v = f1.bandpass(p) * 1.0f
-        v += f2.bandpass(p) * 0.55f
-        v += f3.bandpass(p) * 0.3f
+        // No cubing or squaring of the envelope: that sharpened the gate into a gasp.
+        var v = f1.bandpass(p)
+        v += f2.bandpass(p) * 0.6f
 
-        f1.set(glide1.process(target1), 7f)
-        f2.set(glide2.process(target2), 9f)
-        f3.set(glide3.process(target3), 11f)
+        f1.set(glide1.process(target1), 3.0f)
+        f2.set(glide2.process(target2), 3.5f)
 
-        return v * envelope * envelope * level
+        return v * envelope * level
     }
 
     private fun advance() {
         if (resting) {
             resting = false
             framesLeft = (SAMPLE_RATE / syllablesPerSec * rng.range(0.5f, 0.9f)).toInt()
-            envelopeStep = 1f / (0.035f * SAMPLE_RATE)
-            // A new vowel each syllable.
-            target1 = tract * rng.range(300f, 800f)
-            target2 = tract * rng.range(900f, 2100f)
-            target3 = tract * rng.range(2300f, 3200f)
+            envelopeStep = (1f - FLOOR) / (0.04f * SAMPLE_RATE)
+            // F1 stays above 430 Hz. Below that it resonates in the chest and growls.
+            target1 = tract * rng.range(430f, 900f)
+            target2 = tract * rng.range(1100f, 2200f)
         } else {
             resting = true
-            envelopeStep = -1f / (0.035f * SAMPLE_RATE)
-            framesLeft = (SAMPLE_RATE / syllablesPerSec * rng.range(0.2f, 0.5f)).toInt()
+            envelopeStep = -(1f - FLOOR) / (0.04f * SAMPLE_RATE)
+            framesLeft = (SAMPLE_RATE / syllablesPerSec * rng.range(0.15f, 0.4f)).toInt()
         }
-        // Between phrases the talker stops for a while, so the room breathes.
         if (--phraseLeft <= 0) {
             phraseLeft = (SAMPLE_RATE * rng.range(2f, 6f)).toInt()
             if (rng.nextFloat() < 0.5f) {
                 resting = true
-                envelopeStep = -1f / (0.05f * SAMPLE_RATE)
-                framesLeft = (SAMPLE_RATE * rng.range(0.6f, 2.2f)).toInt()
+                envelopeStep = -(1f - FLOOR) / (0.06f * SAMPLE_RATE)
+                framesLeft = (SAMPLE_RATE * rng.range(0.5f, 1.6f)).toInt()
             }
         }
+    }
+
+    private companion object {
+        /** Syllables duck to this, never to silence. Full gating is what stutters. */
+        const val FLOOR = 0.45f
     }
 }
 
 /**
- * Cafe: seven talkers at different distances, room tone underneath, and cutlery.
+ * Cafe: fourteen quiet talkers heard through a room, plus cutlery.
  *
- * The clinks are a struck resonator rather than the decaying sine the first cut used.
- * A pure tone is the single most synthetic sound there is, and one every couple of
- * seconds was what made the whole thing land as fake.
+ * Nobody is close. Fourteen talkers all at roughly the same low level means no single
+ * one is ever resolvable, and a 2.2 kHz lowpass over the whole babble bus stands in for
+ * the distance and takes the edge off. The earlier version had two talkers up at 0.7–1.0
+ * against five quiet ones, and those two were exactly what you heard.
  */
 private class CafeGen(seed: Long) : Generator {
     private val rng = Rng(seed)
@@ -470,34 +475,41 @@ private class CafeGen(seed: Long) : Generator {
     private val roomFilter = Svf(180f, 0.8f)
     private val airFilter = Svf(3000f, 0.6f)
 
-    // Two near, five further off: a room is mostly people you cannot pick out.
-    private val talkers = Array(7) { i ->
-        Talker(rng, level = if (i < 2) rng.range(0.7f, 1f) else rng.range(0.15f, 0.4f))
-    }
+    // Distance. Also kills the sibilant edge that made the babble sound close and dry.
+    private val distance = Svf(2200f, 0.7f)
+    private val chestCut = Svf(200f, 0.7f)
+
+    private val talkers = Array(14) { Talker(rng, level = rng.range(0.16f, 0.34f)) }
 
     private val clinks = VoicePool(8)
     private val clinkClock = EventClock(0.55f, rng)
 
     override fun render(out: FloatArray, n: Int) {
         for (i in 0 until n) {
-            var s = 0f
-            for (t in talkers) s += t.next()
-            s *= 0.5f
+            var babble = 0f
+            for (t in talkers) babble += t.next()
+            // Roll off both ends of the babble: no chest, no sibilance.
+            babble = distance.lowpass(babble)
+            babble = chestCut.highpass(babble)
+
+            var s = babble * 0.85f
 
             // Room tone: HVAC and the low end of everything else in the building.
-            s += roomFilter.lowpass(brown.next()) * 0.30f
+            // Kept well down. Brown noise carries so much low energy that at any
+            // real level it buries the babble and the whole thing turns to rumble.
+            s += roomFilter.lowpass(brown.next()) * 0.12f
             s += airFilter.highpass(rng.bipolar()) * 0.012f
 
             if (clinkClock.tick()) {
                 // Two partials, inharmonic, short: a spoon on porcelain.
                 val f = rng.range(1800f, 3800f)
-                val amp = rng.range(0.15f, 0.5f)
+                val amp = rng.range(0.12f, 0.4f)
                 clinks.trigger(f, 22f, amp, rng.range(0.03f, 0.11f))
                 clinks.trigger(f * rng.range(1.9f, 2.7f), 18f, amp * 0.45f, 0.04f)
             }
             s += clinks.next(rng.bipolar()) * 0.5f
 
-            out[i] = softClip(s * 0.53f)
+            out[i] = softClip(s * 0.781f)
         }
     }
 }

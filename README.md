@@ -34,11 +34,11 @@ there is no seam to notice at 3 a.m., and the APK carries no audio assets.
 | 4 | Rain | Hiss + mid body + ~55 discrete drops/sec, slow gusts |
 | 5 | Thunderstorm | Heavier rain, plus a swept low rumble every 20–70 s |
 | 6 | Ocean waves | 7–13 s swell driving both a lowpass sweep and foam |
-| 7 | Stream | Two noise bands plus pitch-drifting resonant gurgles |
+| 7 | Stream | Two noise bands around 620 Hz and 1.65 kHz, plus pitch-drifting gurgles |
 | 8 | Fan | Oscillating head sweeping over 7.1 s, mains hum, blade beating |
 | 9 | Train | Rail rumble with a rail-joint clack every ~1.5 s |
 | 10 | Campfire | Ember bed with woody crackles that arrive in bursts |
-| 11 | Cafe | Seven talkers of formant-filtered noise gated at syllable rate, plus cutlery |
+| 11 | Cafe | Fourteen quiet talkers of formant-filtered noise, distance-filtered, plus cutlery |
 | 12 | Wind | One gust envelope driving amplitude, cutoff and leaf hiss together |
 
 ## Using it
@@ -69,6 +69,17 @@ going off; there is a Stop action in the notification shade.
 - **All twelve sounds are level-matched to 0.12 RMS**, so swapping presets changes the
   texture and not the volume. Layer and master gains are squared before they are
   applied, because a linear amplitude slider feels dead until its last quarter.
+- **Output runs through a look-ahead limiter, and that is what makes the app loud
+  enough.** Normalising generators to 0.12 RMS put playback at −24.6 dBFS, about 10 dB
+  under music and podcasts, so the phone had to be at full volume to hear anything.
+  These sounds have a crest factor near 7 — the bed sits far below the occasional rain
+  drop or spoon clink — so raising the master alone clips transients long before the bed
+  gets loud. A 1.7x makeup gain plus limiting lands the default at −15.7 dBFS and full
+  master at −14.0, level with mastered music. The look-ahead is not decorative: a plain
+  feedforward limiter derived its gain from the sample it was already outputting and let
+  peaks through at exactly 1.0, and its peak follower needs to *hold* for the length of
+  the delay line or the gain starts recovering before the peak it is guarding against
+  arrives.
 - **`material-icons-extended` is banned** — on LightTip it alone was ~30 MB. `abiFilters`
   is arm64 only.
 - **The launcher icon is a vector adaptive icon with no PNG buckets.** minSdk is 29, so
@@ -99,7 +110,13 @@ only findable by ear:
   measure on pink noise and fails if it stops discriminating.
 - Campfire must keep under 2 % of its energy above 2.5 kHz, so crackles stay woody
   instead of drifting back toward static.
-- Cafe must concentrate over 38 % of its energy in the 300–3400 Hz speech band, and beat
-  pink noise on that measure by half again.
+- Cafe must concentrate over 45 % of its energy in the 300–3400 Hz speech band and beat
+  pink noise there by 1.8x, keep under 20 % of its energy below 250 Hz, and have a
+  *smoother* envelope than pink noise. The last two encode a fix: an earlier version
+  sounded, accurately, demonic. Sharp formants with F1 dipping into the chest register,
+  gated deeply on a few loud talkers, is unpitched noise doing vowels — the ear reads it
+  as something speaking that should not be able to.
+- The limiter has its own three: it must hold a 0.9 ceiling against 2.5-amplitude spikes,
+  leave a quiet bed within 2 % of unity, and release fully within a second.
 
 CI runs the whole suite before it builds the APK.

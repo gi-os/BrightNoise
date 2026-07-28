@@ -254,6 +254,78 @@ class Sine(hz: Float) {
     }
 }
 
+/**
+ * Look-ahead peak limiter on the output bus.
+ *
+ * This is what buys the loudness. Every generator here has a crest factor around 7 —
+ * the sustained bed sits far below the occasional rain drop or spoon clink — so simply
+ * turning the master up clips the transients long before the bed is loud enough to match
+ * other apps. Ducking those transients for a couple of milliseconds instead lets the bed
+ * come up about 9 dB.
+ *
+ * The look-ahead is not optional here. A plain feedforward limiter derives its gain from
+ * the sample it is already outputting, so a transient's leading edge is through before
+ * the gain moves — measured at exactly 1.0 peak on rain, ocean and campfire, i.e. hard
+ * clipping, with the limiter's average gain still reading 1.000 because the events are
+ * so brief. Delaying the signal by the attack time and driving the gain from the
+ * undelayed peak means the gain is already down when the transient arrives.
+ */
+class Limiter(
+    private val threshold: Float = 0.90f,
+    lookaheadSec: Float = 0.0022f,
+    releaseSec: Float = 0.18f,
+) {
+    private val delay = FloatArray((lookaheadSec * SAMPLE_RATE).toInt().coerceAtLeast(8))
+    private var writeIndex = 0
+
+    // Reaches ~99 % of target within the look-ahead window, so the gain has settled by
+    // the time the peak that caused it reaches the output.
+    private val attack = 1f - exp(-5.0 / delay.size).toFloat()
+    private val release = 1f - exp(-1.0 / (releaseSec * SAMPLE_RATE)).toFloat()
+
+    // Peak follower on the input, held for the length of the delay line. The hold is
+    // load-bearing: without it the follower starts decaying the instant the peak
+    // passes, the gain target rises again, and the peak arrives at the output against a
+    // gain that has already begun recovering. Measured 1.076 against a 0.9 ceiling.
+    private val envRelease = 1f - exp(-1.0 / (0.015f * SAMPLE_RATE)).toFloat()
+    private var env = 0f
+    private var hold = 0
+    private var gain = 1f
+
+    /** Current gain reduction, for tests and diagnostics. */
+    val currentGain: Float get() = gain
+
+    fun process(x: Float): Float {
+        val mag = if (x < 0f) -x else x
+        if (mag >= env) {
+            env = mag
+            hold = delay.size
+        } else if (hold > 0) {
+            hold--
+        } else {
+            env += (mag - env) * envRelease
+        }
+
+        val target = if (env > threshold) threshold / env else 1f
+        // Clamp down quickly, recover slowly — otherwise the release pumps audibly
+        // against a dense transient stream like heavy rain.
+        gain += (target - gain) * if (target < gain) attack else release
+
+        val delayed = delay[writeIndex]
+        delay[writeIndex] = x
+        writeIndex = (writeIndex + 1) % delay.size
+        return delayed * gain
+    }
+
+    fun reset() {
+        gain = 1f
+        env = 0f
+        hold = 0
+        java.util.Arrays.fill(delay, 0f)
+        writeIndex = 0
+    }
+}
+
 /** Soft clip. Guards the mix bus when two layers and a transient land together. */
 fun softClip(x: Float): Float = when {
     x > 1.6f -> 1f
