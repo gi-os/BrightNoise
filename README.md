@@ -16,6 +16,11 @@ adb install -r LightNoise-v1.0.<run>.apk
 
 Every push to `main` publishes a signed release, so `-r` upgrades in place.
 
+One stable 4096-bit key signs every build (`keystore/lightnoise.jks`, committed on
+purpose) and exactly one APK ships per release, which is what Obtainium needs. The
+certificate SHA-256 is pinned in `signing-fingerprint.txt` and CI fails on drift —
+a changed certificate otherwise surfaces only as `Failure: Invalid` at install time.
+
 ## Sounds
 
 All twelve are **synthesised in real time**, not looped audio files. Nothing repeats,

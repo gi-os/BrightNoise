@@ -40,6 +40,26 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # Android identifies an app by (packageName, signing certificate). A drifting
+      # certificate shows up only as "Failure: Invalid" at install time, days later,
+      # so pin it and fail the build here instead. The keystore is committed, which
+      # is what keeps it stable across runners.
+      - name: Verify the signing certificate has not drifted
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          ACTUAL=$("$BT/apksigner" verify --print-certs \
+            app/build/outputs/apk/debug/app-debug.apk \
+            | grep -i 'certificate SHA-256 digest' | head -1 \
+            | sed -E 's/.*[Dd]igest:[[:space:]]*//' | tr -d ' \r' | tr 'A-F' 'a-f')
+          EXPECTED=$(tr -d ' \n\r' < signing-fingerprint.txt | tr 'A-F' 'a-f')
+          echo "expected: $EXPECTED"
+          echo "actual:   $ACTUAL"
+          if [ -z "$ACTUAL" ]; then echo "APK is not signed at all"; exit 1; fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Signing certificate changed — installs would fail with 'Invalid'."
+            exit 1
+          fi
+
       - name: Name the APK
         run: cp app/build/outputs/apk/debug/app-debug.apk "LightNoise-v${{ steps.ver.outputs.version }}.apk"
 
