@@ -129,31 +129,115 @@ class DspTest {
         assertTrue("Voice never released (residual $residual)", residual < 1e-3f)
     }
 
+    /** Energy above [hz] as a fraction of the total. */
+    private fun highBandFraction(id: SoundId, hz: Float, secs: Int = 60): Double {
+        val gen = generatorFor(id, 5150L)
+        val split = OnePole(hz)
+        val buf = FloatArray(block)
+        var high = 0.0
+        var total = 0.0
+        repeat(secs * SAMPLE_RATE / block) {
+            gen.render(buf, block)
+            for (v in buf) {
+                val lp = split.process(v)
+                val hp = v - lp
+                high += hp.toDouble() * hp
+                total += v.toDouble() * v
+            }
+        }
+        return high / total
+    }
+
+    /** Energy between [lo] and [hi] Hz as a fraction of the total. */
+    private fun bandFraction(id: SoundId, lo: Float, hi: Float, secs: Int = 60): Double {
+        val gen = generatorFor(id, 5150L)
+        val below = OnePole(lo)
+        val belowHi = OnePole(hi)
+        val buf = FloatArray(block)
+        var band = 0.0
+        var total = 0.0
+        repeat(secs * SAMPLE_RATE / block) {
+            gen.render(buf, block)
+            for (v in buf) {
+                val inBand = belowHi.process(v) - below.process(v)
+                band += inBand.toDouble() * inBand
+                total += v.toDouble() * v
+            }
+        }
+        return band / total
+    }
+
+    /** RMS of each [windowSec] slice, in order — the amplitude envelope. */
+    private fun envelope(id: SoundId, secs: Int, windowSec: Float): FloatArray {
+        val gen = generatorFor(id, 8080L)
+        val window = (windowSec * SAMPLE_RATE).toInt()
+        val buf = FloatArray(block)
+        val out = ArrayList<Float>()
+        var sq = 0.0
+        var count = 0
+        repeat(secs * SAMPLE_RATE / block) {
+            gen.render(buf, block)
+            for (v in buf) {
+                sq += v.toDouble() * v
+                if (++count == window) {
+                    out.add(sqrt(sq / count).toFloat())
+                    sq = 0.0
+                    count = 0
+                }
+            }
+        }
+        return out.toFloatArray()
+    }
+
+    /** Normalised autocorrelation of an envelope at a lag measured in windows. */
+    private fun autocorrelation(env: FloatArray, lag: Int): Double {
+        val mean = env.average()
+        var num = 0.0
+        var den = 0.0
+        for (v in env) {
+            val d = v - mean
+            den += d * d
+        }
+        for (i in 0 until env.size - lag) num += (env[i] - mean) * (env[i + lag] - mean)
+        return num / den * env.size / (env.size - lag)
+    }
+
     @Test
-    fun loopGeneratorWrapsWithoutAClick() {
-        // A ramp is the worst case: raw looping would jump from +1 back to -1.
-        val n = SAMPLE_RATE / 2
-        val pcm = FloatArray(n) { -1f + 2f * it / n }
-        val gen = LoopGenerator(pcm)
-        // Size the buffer to a whole number of blocks: a partly-filled tail leaves
-        // zeros behind and the step into them looks exactly like the click we are
-        // hunting for. That false positive cost a debugging round the first time.
-        val blocks = n * 3 / 512
-        val out = FloatArray(blocks * 512)
-        val buf = FloatArray(512)
-        var p = 0
-        while (p < out.size) {
-            gen.render(buf, 512)
-            buf.copyInto(out, p)
-            p += 512
-        }
-        var maxStep = 0f
-        for (i in 1 until out.size) {
-            val step = abs(out[i] - out[i - 1])
-            if (step > maxStep) maxStep = step
-        }
-        // The ramp's own slope is 2/n per sample; a click would be near 2.0.
-        assertTrue("Loop wrap produced a discontinuity of $maxStep", maxStep < 0.05f)
+    fun campfireCracklesAreWoodyNotHissy() {
+        // The first cut put crackles at 1.2–5.2 kHz with 3 ms tails and read as static
+        // rather than burning wood. Keep the energy where a log actually resonates.
+        val fraction = highBandFraction(SoundId.CAMPFIRE, 2500f)
+        assertTrue("Campfire is too bright: ${fraction * 100}% above 2.5 kHz", fraction < 0.02)
+    }
+
+    @Test
+    fun fanHeadActuallyOscillates() {
+        // Testing this by how far the level swings does not work: brown noise wanders
+        // about as much over a second as the fan sweeps. Periodicity is what makes the
+        // fan different, so measure that — the envelope must correlate with itself one
+        // sweep later, and anti-correlate half a sweep later because the sweep is a
+        // triangle. Steady sounds sit inside ±0.11 on both.
+        val windowSec = 0.25f
+        val env = envelope(SoundId.FAN, secs = 60, windowSec = windowSec)
+        val full = autocorrelation(env, (7.1f / windowSec).toInt())
+        val half = autocorrelation(env, (3.55f / windowSec).toInt())
+        assertTrue("Fan envelope is not periodic at 7.1 s (r=$full)", full > 0.35)
+        assertTrue("Fan sweep is not a triangle (r at half period=$half)", half < -0.25)
+
+        // Same measure on a steady sound, so the test fails if the metric goes blunt.
+        val steady = envelope(SoundId.PINK, secs = 60, windowSec = windowSec)
+        val steadyFull = autocorrelation(steady, (7.1f / windowSec).toInt())
+        assertTrue("Metric is not discriminating (pink r=$steadyFull)", abs(steadyFull) < 0.2)
+    }
+
+    @Test
+    fun cafeEnergySitsInTheSpeechBand() {
+        // Formant resonators put the babble where voices live. The bandpassed pink
+        // noise this replaced spread much wider, which is part of why it read as fake.
+        val cafe = bandFraction(SoundId.CAFE, 300f, 3400f)
+        val pink = bandFraction(SoundId.PINK, 300f, 3400f)
+        assertTrue("Cafe is not concentrated in the speech band ($cafe)", cafe > 0.38)
+        assertTrue("Cafe is no more speech-shaped than pink noise ($cafe vs $pink)", cafe > pink * 1.5)
     }
 
     @Test

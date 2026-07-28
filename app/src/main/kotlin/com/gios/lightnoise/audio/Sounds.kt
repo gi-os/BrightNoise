@@ -18,10 +18,10 @@ enum class SoundId(val label: String, val blurb: String) {
     STORM("Thunderstorm", "Heavy rain, distant thunder"),
     OCEAN("Ocean waves", "Slow swell and foam"),
     STREAM("Stream", "Water over stones"),
-    FAN("Fan", "Box fan and HVAC hum"),
+    FAN("Fan", "Oscillating fan, motor hum"),
     TRAIN("Train", "Rail rumble and clack"),
-    CAMPFIRE("Campfire", "Embers and crackle"),
-    CAFE("Cafe", "Distant murmur and clinks"),
+    CAMPFIRE("Campfire", "Embers and woody crackle"),
+    CAFE("Cafe", "A room of voices and cutlery"),
     WIND("Wind", "Gusts through trees");
 }
 
@@ -246,13 +246,35 @@ private class FanGen(seed: Long) : Generator {
     private val blade = Sine(23.5f)
     private val wobble = SlowNoise(0.4f, rng)
 
+    /**
+     * An oscillating fan sweeps its head side to side over about 7 seconds. What you
+     * hear when it turns away is not just less level: the air noise loses its top end
+     * first, because the high frequencies are the directional ones. Moving brightness
+     * and level together is what makes it read as rotation rather than a tremolo.
+     */
+    private val sweepPeriod = (SAMPLE_RATE * 7.1f).toInt()
+    private var sweepPos = 0
+
     override fun render(out: FloatArray, n: Int) {
         for (i in 0 until n) {
+            // Triangle, not sine: the head turns at a constant rate and reverses at
+            // the ends of its travel.
+            val phase = sweepPos.toFloat() / sweepPeriod
+            val tri = if (phase < 0.5f) phase * 2f else 2f - phase * 2f
+            // Facing you at the middle of the sweep, angled away at either end.
+            val facing = 0.35f + 0.65f * tri
+
+            air.set(650f + 1500f * facing, 0.7f)
+
             var s = brown.next() * 0.5f
-            s += air.lowpass(rng.bipolar()) * 0.18f
+            s += air.lowpass(rng.bipolar()) * 0.30f * facing
+            // The motor hum is the one part that does not swing with the head.
             s += hum1.next() * 0.05f + hum2.next() * 0.025f
-            val mod = 1f + 0.05f * blade.next() + 0.06f * wobble.next()
-            out[i] = s * 0.667f * mod
+            val mod = (0.62f + 0.38f * facing) *
+                (1f + 0.05f * blade.next() + 0.06f * wobble.next())
+            out[i] = s * 0.75f * mod
+
+            if (++sweepPos >= sweepPeriod) sweepPos = 0
         }
     }
 }
@@ -306,20 +328,26 @@ private class TrainGen(seed: Long) : Generator {
 /**
  * Campfire: a quiet ember bed with crackles that arrive in bursts. The clustering is
  * the whole trick — evenly spaced pops sound like a fault, not a fire.
+ *
+ * Crackles live at 220–1500 Hz with tails long enough to ring. The first cut put them
+ * at 1.2–5.2 kHz with 3 ms tails, which is the sound of static, not burning wood: what
+ * you actually hear from a fire is the resonance of the log the steam pocket burst in,
+ * and a log is a big object. Occasional lower thumps stand in for one settling.
  */
 private class CampfireGen(seed: Long) : Generator {
     private val rng = Rng(seed)
     private val brown = Brown(rng)
     private val bed = Svf(260f, 0.8f)
-    private val airy = Svf(1100f, 0.7f)
+    private val airy = Svf(900f, 0.7f)
     private val pops = VoicePool(14)
     private val clock = EventClock(9f, rng)
+    private val settle = EventClock(0.12f, rng)
     private var burstFrames = 0
 
     override fun render(out: FloatArray, n: Int) {
         for (i in 0 until n) {
-            var s = bed.lowpass(brown.next()) * 0.75f
-            s += airy.lowpass(rng.bipolar()) * 0.07f
+            var s = bed.lowpass(brown.next()) * 0.8f
+            s += airy.lowpass(rng.bipolar()) * 0.06f
 
             if (burstFrames > 0) {
                 burstFrames--
@@ -331,14 +359,19 @@ private class CampfireGen(seed: Long) : Generator {
 
             if (clock.tick()) {
                 pops.trigger(
-                    hz = rng.range(1200f, 5200f),
-                    q = rng.range(4f, 14f),
-                    amp = rng.nextFloat().pow(2.2f) * 1.1f,
-                    tauSec = rng.range(0.003f, 0.014f),
+                    hz = rng.range(220f, 1500f),
+                    // Lower Q than before: a woody snap is a broad thock, not a ping.
+                    q = rng.range(2.5f, 7f),
+                    amp = rng.nextFloat().pow(2.2f) * 1.5f,
+                    tauSec = rng.range(0.008f, 0.045f),
                 )
             }
+            if (settle.tick()) {
+                // A log shifting: low, soft, and slow to die away.
+                pops.trigger(rng.range(70f, 150f), 2f, rng.range(0.5f, 1.1f), 0.18f)
+            }
             s += pops.next(rng.bipolar()) * 0.6f
-            out[i] = softClip(s * 0.47f)
+            out[i] = softClip(s * 0.441f)
         }
     }
 }
@@ -346,47 +379,125 @@ private class CampfireGen(seed: Long) : Generator {
 // ------------------------------------------------------------------------------- room
 
 /**
- * Cafe: speech-band noise chopped by several independent slow modulators, which is
- * roughly what an unintelligible room of conversations is. Plus cutlery.
+ * One indistinct talker. Noise through three formant resonators, gated by a syllable
+ * envelope, with pauses between phrases.
+ *
+ * Bandpassed noise on its own does not read as speech no matter how you modulate it —
+ * the ear is listening for formants and for syllable rhythm, and it notices when
+ * neither is there. Each speaker gets its own vocal-tract size and speaking rate, and
+ * the formants glide between syllables rather than jumping, which is what stops the
+ * result sounding like a filter sweep.
+ */
+private class Talker(private val rng: Rng, private val level: Float) {
+
+    private val pink = Pink(rng)
+    private val f1 = Svf(500f, 7f)
+    private val f2 = Svf(1500f, 9f)
+    private val f3 = Svf(2600f, 11f)
+
+    // Scales every formant: a shorter tract puts them all higher.
+    private val tract = rng.range(0.82f, 1.22f)
+    private val syllablesPerSec = rng.range(2.6f, 4.6f)
+
+    private var target1 = 500f
+    private var target2 = 1500f
+    private var target3 = 2600f
+    private val glide1 = OnePole(11f)
+    private val glide2 = OnePole(11f)
+    private val glide3 = OnePole(11f)
+
+    private var envelope = 0f
+    private var envelopeStep = 0f
+    private var framesLeft = 0
+    private var phraseLeft = (SAMPLE_RATE * rng.range(1f, 4f)).toInt()
+    private var resting = false
+
+    fun next(): Float {
+        if (--framesLeft <= 0) advance()
+
+        // Attack and release both take about 35 ms, so syllables run together the way
+        // connected speech does instead of stuttering.
+        envelope = (envelope + envelopeStep).coerceIn(0f, 1f)
+
+        val p = pink.next()
+        var v = f1.bandpass(p) * 1.0f
+        v += f2.bandpass(p) * 0.55f
+        v += f3.bandpass(p) * 0.3f
+
+        f1.set(glide1.process(target1), 7f)
+        f2.set(glide2.process(target2), 9f)
+        f3.set(glide3.process(target3), 11f)
+
+        return v * envelope * envelope * level
+    }
+
+    private fun advance() {
+        if (resting) {
+            resting = false
+            framesLeft = (SAMPLE_RATE / syllablesPerSec * rng.range(0.5f, 0.9f)).toInt()
+            envelopeStep = 1f / (0.035f * SAMPLE_RATE)
+            // A new vowel each syllable.
+            target1 = tract * rng.range(300f, 800f)
+            target2 = tract * rng.range(900f, 2100f)
+            target3 = tract * rng.range(2300f, 3200f)
+        } else {
+            resting = true
+            envelopeStep = -1f / (0.035f * SAMPLE_RATE)
+            framesLeft = (SAMPLE_RATE / syllablesPerSec * rng.range(0.2f, 0.5f)).toInt()
+        }
+        // Between phrases the talker stops for a while, so the room breathes.
+        if (--phraseLeft <= 0) {
+            phraseLeft = (SAMPLE_RATE * rng.range(2f, 6f)).toInt()
+            if (rng.nextFloat() < 0.5f) {
+                resting = true
+                envelopeStep = -1f / (0.05f * SAMPLE_RATE)
+                framesLeft = (SAMPLE_RATE * rng.range(0.6f, 2.2f)).toInt()
+            }
+        }
+    }
+}
+
+/**
+ * Cafe: seven talkers at different distances, room tone underneath, and cutlery.
+ *
+ * The clinks are a struck resonator rather than the decaying sine the first cut used.
+ * A pure tone is the single most synthetic sound there is, and one every couple of
+ * seconds was what made the whole thing land as fake.
  */
 private class CafeGen(seed: Long) : Generator {
     private val rng = Rng(seed)
-    private val pink = Pink(rng)
-    private val low = Svf(750f, 0.7f)
-    private val mid = Svf(1900f, 0.8f)
-    private val roomFilter = Svf(160f, 0.8f)
     private val brown = Brown(rng)
-    private val mods = Array(5) { SlowNoise(rng.range(0.4f, 1.7f), rng) }
-    private val clinks = VoicePool(6)
-    private val clinkClock = EventClock(0.4f, rng)
-    private val clinkTone = Sine(3000f)
-    private var clinkAmp = 0f
-    private var clinkDecay = 0f
+    private val roomFilter = Svf(180f, 0.8f)
+    private val airFilter = Svf(3000f, 0.6f)
+
+    // Two near, five further off: a room is mostly people you cannot pick out.
+    private val talkers = Array(7) { i ->
+        Talker(rng, level = if (i < 2) rng.range(0.7f, 1f) else rng.range(0.15f, 0.4f))
+    }
+
+    private val clinks = VoicePool(8)
+    private val clinkClock = EventClock(0.55f, rng)
 
     override fun render(out: FloatArray, n: Int) {
         for (i in 0 until n) {
-            val p = pink.next()
-            var murmur = low.bandpass(p) * 0.9f + mid.bandpass(p) * 0.5f
+            var s = 0f
+            for (t in talkers) s += t.next()
+            s *= 0.5f
 
-            var env = 0f
-            for (m in mods) env += (m.next() * 0.5f + 0.5f).coerceIn(0f, 1f)
-            murmur *= 0.65f + 0.35f * (env / mods.size)
-
-            var s = murmur + roomFilter.lowpass(brown.next()) * 0.22f
+            // Room tone: HVAC and the low end of everything else in the building.
+            s += roomFilter.lowpass(brown.next()) * 0.30f
+            s += airFilter.highpass(rng.bipolar()) * 0.012f
 
             if (clinkClock.tick()) {
-                clinkTone.setHz(rng.range(2200f, 4600f))
-                clinkAmp = rng.range(0.05f, 0.13f)
-                clinkDecay = kotlin.math.exp(-1.0 / (0.09f * SAMPLE_RATE)).toFloat()
-                clinks.trigger(rng.range(3000f, 6000f), 12f, clinkAmp * 3f, 0.05f)
-            }
-            if (clinkAmp > 1e-4f) {
-                s += clinkTone.next() * clinkAmp
-                clinkAmp *= clinkDecay
+                // Two partials, inharmonic, short: a spoon on porcelain.
+                val f = rng.range(1800f, 3800f)
+                val amp = rng.range(0.15f, 0.5f)
+                clinks.trigger(f, 22f, amp, rng.range(0.03f, 0.11f))
+                clinks.trigger(f * rng.range(1.9f, 2.7f), 18f, amp * 0.45f, 0.04f)
             }
             s += clinks.next(rng.bipolar()) * 0.5f
 
-            out[i] = softClip(s * 1.07f)
+            out[i] = softClip(s * 0.53f)
         }
     }
 }

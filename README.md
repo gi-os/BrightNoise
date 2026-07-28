@@ -35,32 +35,19 @@ there is no seam to notice at 3 a.m., and the APK carries no audio assets.
 | 5 | Thunderstorm | Heavier rain, plus a swept low rumble every 20–70 s |
 | 6 | Ocean waves | 7–13 s swell driving both a lowpass sweep and foam |
 | 7 | Stream | Two noise bands plus pitch-drifting resonant gurgles |
-| 8 | Fan | Brown bed, mains hum, 23.5 Hz blade beating |
+| 8 | Fan | Oscillating head sweeping over 7.1 s, mains hum, blade beating |
 | 9 | Train | Rail rumble with a rail-joint clack every ~1.5 s |
-| 10 | Campfire | Ember bed with crackles that arrive in bursts |
-| 11 | Cafe | Speech-band noise under five modulators, plus cutlery |
+| 10 | Campfire | Ember bed with woody crackles that arrive in bursts |
+| 11 | Cafe | Seven talkers of formant-filtered noise gated at syllable rate, plus cutlery |
 | 12 | Wind | One gust envelope driving amplitude, cutoff and leaf hiss together |
-
-### Your own loops
-
-Copy `.ogg`, `.mp3`, `.m4a`, `.wav`, `.flac` or `.opus` files to **`/sdcard/LightNoise`**
-(or `Music/LightNoise`, or `Download/LightNoise`) and they appear under MY LOOPS:
-
-```bash
-adb shell mkdir -p /sdcard/LightNoise
-adb push my-recording.ogg /sdcard/LightNoise/
-```
-
-Files are decoded once to mono and looped from memory with a 50 ms crossfade baked in,
-so the wrap is inaudible. Anything over 150 s is truncated.
 
 ## Using it
 
 Three tabs, with the transport always visible above them.
 
 - **SOUNDS** — tap any sound to start it immediately.
-- **MIX** — layer A and layer B with independent levels, plus master volume. Rain over
-  brown noise is the usual pick. Layer B is muted while it is set to None.
+- **MIX** — layer A and layer B with independent levels, plus master volume. Layer B is
+  muted while it is set to None.
 - **TIMER** — off / 15 / 30 / 45 / 60 / 90 / 120 min. Volume fades over the last 25
   seconds, then playback and the wake lock are released.
 
@@ -84,6 +71,10 @@ going off; there is a Stop action in the notification shade.
   applied, because a linear amplitude slider feels dead until its last quarter.
 - **`material-icons-extended` is banned** — on LightTip it alone was ~30 MB. `abiFilters`
   is arm64 only.
+- **The launcher icon is a vector adaptive icon with no PNG buckets.** minSdk is 29, so
+  every device this installs on supports adaptive icons. Five chunky bars rather than
+  seven thin ones: an adaptive icon only shows its inner 72 of 108 dp, and a 6 dp bar
+  lands at about two pixels in a launcher grid.
 
 ## Tests
 
@@ -97,4 +88,18 @@ The tests are less about correctness than about stability: a state-variable filt
 goes unstable ten minutes into a session is a screech at 3 a.m., and a five-second
 listen will not catch it. They render 60–120 s of every sound and assert no non-finite
 samples, no clipping, no DC drift, an audible-but-not-loud RMS, and less than 12 dB of
-spread across the set. CI runs them before it builds the APK.
+spread across the set.
+
+Three of them check character rather than safety, because "it sounds wrong" is otherwise
+only findable by ear:
+
+- The fan's envelope must correlate with itself one 7.1 s sweep later and anti-correlate
+  half a sweep later. Measuring how far the level *swings* does not work — brown noise
+  wanders about as much over a second as the fan sweeps. The test also runs the same
+  measure on pink noise and fails if it stops discriminating.
+- Campfire must keep under 2 % of its energy above 2.5 kHz, so crackles stay woody
+  instead of drifting back toward static.
+- Cafe must concentrate over 38 % of its energy in the 300–3400 Hz speech band, and beat
+  pink noise on that measure by half again.
+
+CI runs the whole suite before it builds the APK.

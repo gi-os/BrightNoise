@@ -36,7 +36,6 @@ internal object Prefs {
     private fun encode(pick: Pick): String = when (pick) {
         Pick.None -> ""
         is Pick.Synth -> "s:${pick.id.name}"
-        is Pick.Loop -> "f:${pick.path}"
     }
 
     private fun decode(raw: String?): Pick = when {
@@ -46,7 +45,6 @@ internal object Prefs {
             val id = SoundId.entries.firstOrNull { it.name == raw.substring(2) }
             if (id != null) Pick.Synth(id) else Pick.Synth(SoundId.RAIN)
         }
-        raw.startsWith("f:") -> Pick.Loop(raw.substring(2))
         else -> Pick.None
     }
 }

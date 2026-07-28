@@ -24,17 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.gios.lightnoise.audio.LoopLibrary
 import com.gios.lightnoise.audio.SoundId
 import com.gios.lightnoise.service.NoiseController
 import com.gios.lightnoise.service.NoiseState
 import com.gios.lightnoise.service.Pick
 import com.gios.lightnoise.service.Slot
 import com.gios.lightnoise.ui.theme.Dim
-import com.gios.lightnoise.ui.theme.Faint
-import java.io.File
 
-/** Tab 1 — the twelve synthesised sounds plus anything found in /sdcard/LightNoise. */
+/** Tab 1 — the twelve synthesised sounds. */
 @Composable
 fun SoundsScreen(state: NoiseState, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize()) {
@@ -48,30 +45,6 @@ fun SoundsScreen(state: NoiseState, modifier: Modifier = Modifier) {
                 onClick = { NoiseController.playNow(Pick.Synth(id)) },
             )
         }
-
-        item { ScreenTitle("MY LOOPS") }
-        if (state.loops.isEmpty()) {
-            item {
-                Text(
-                    "Drop .ogg, .mp3, .m4a or .wav files into " +
-                        "${LoopLibrary.primaryPathLabel()} on the phone and they will " +
-                        "appear here, looped seamlessly.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Dim,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
-        } else {
-            items(state.loops, key = { it }) { path ->
-                SoundRow(
-                    label = File(path).nameWithoutExtension,
-                    sub = "Your file",
-                    selected = state.pickA == Pick.Loop(path),
-                    trailing = if (state.pickB == Pick.Loop(path)) "B" else null,
-                    onClick = { NoiseController.playNow(Pick.Loop(path)) },
-                )
-            }
-        }
         item { Box(Modifier.height(24.dp)) }
     }
 }
@@ -81,7 +54,7 @@ fun SoundsScreen(state: NoiseState, modifier: Modifier = Modifier) {
 fun MixScreen(state: NoiseState, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("LAYER A")
-        PickerRow(state, Slot.A, state.pickA)
+        PickerRow(Slot.A, state.pickA)
         LevelBar(
             label = "LEVEL",
             value = state.levelA,
@@ -89,7 +62,7 @@ fun MixScreen(state: NoiseState, modifier: Modifier = Modifier) {
         ) { NoiseController.setLevel(Slot.A, it) }
 
         ScreenTitle("LAYER B")
-        PickerRow(state, Slot.B, state.pickB)
+        PickerRow(Slot.B, state.pickB)
         LevelBar(
             label = "LEVEL",
             value = state.levelB,
@@ -98,20 +71,14 @@ fun MixScreen(state: NoiseState, modifier: Modifier = Modifier) {
 
         ScreenTitle("OUTPUT")
         LevelBar(label = "VOLUME", value = state.master) { NoiseController.setMaster(it) }
-        Text(
-            "Rain over brown noise is the usual pick. Layer B is muted while it is set " +
-                "to None.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Faint,
-            modifier = Modifier.padding(16.dp),
-        )
+        Box(Modifier.height(24.dp))
     }
 }
 
-/** A horizontally scrolling strip of every choice for one slot. */
+/** Every choice for one slot, wrapped across as many rows as it needs. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PickerRow(state: NoiseState, slot: Slot, current: Pick) {
+private fun PickerRow(slot: Slot, current: Pick) {
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -122,12 +89,6 @@ private fun PickerRow(state: NoiseState, slot: Slot, current: Pick) {
             Chip(id.label.uppercase(), current == Pick.Synth(id)) {
                 NoiseController.setPick(slot, Pick.Synth(id))
             }
-        }
-        state.loops.forEach { path ->
-            Chip(
-                File(path).nameWithoutExtension.uppercase(),
-                current == Pick.Loop(path),
-            ) { NoiseController.setPick(slot, Pick.Loop(path)) }
         }
     }
 }
@@ -164,14 +125,6 @@ fun TimerScreen(state: NoiseState, modifier: Modifier = Modifier) {
                 ) { NoiseController.setTimer(minutes) }
             }
         }
-
-        Text(
-            "Volume fades out over the last ${NoiseController.FADE_SECONDS} seconds, then " +
-                "playback and the wake lock are released.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Faint,
-            modifier = Modifier.padding(16.dp),
-        )
     }
 }
 

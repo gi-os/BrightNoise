@@ -11,8 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,44 +33,26 @@ import com.gios.lightnoise.ui.theme.LightNoiseTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val requestPermissions =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-            // Either way we carry on: the synthesised sounds need no permission at all,
-            // and a refused storage grant only means the loop list stays empty.
-            NoiseController.refreshLoops()
-        }
+    // Only the shade notification needs a grant, and playback works fine without it.
+    private val requestNotifications =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NoiseController.attach(this)
-        askForWhatWeNeed()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         setContent {
             LightNoiseTheme {
                 Root()
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Files may have been copied over by USB since the app was last opened.
-        NoiseController.refreshLoops()
-    }
-
-    private fun askForWhatWeNeed() {
-        val wanted = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            wanted += Manifest.permission.READ_MEDIA_AUDIO
-            wanted += Manifest.permission.POST_NOTIFICATIONS
-        } else {
-            wanted += Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-        val missing = wanted.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isEmpty()) NoiseController.refreshLoops()
-        else requestPermissions.launch(missing.toTypedArray())
     }
 }
 

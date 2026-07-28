@@ -4,12 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.gios.lightnoise.audio.Generator
-import com.gios.lightnoise.audio.LoopGenerator
-import com.gios.lightnoise.audio.LoopLibrary
 import com.gios.lightnoise.audio.NoiseEngine
 import com.gios.lightnoise.audio.SoundId
 import com.gios.lightnoise.audio.generatorFor
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,13 +21,11 @@ import kotlinx.coroutines.launch
 sealed interface Pick {
     data object None : Pick
     data class Synth(val id: SoundId) : Pick
-    data class Loop(val path: String) : Pick
 
     val label: String
         get() = when (this) {
             None -> "None"
             is Synth -> id.label
-            is Loop -> File(path).nameWithoutExtension
         }
 }
 
@@ -48,7 +43,6 @@ data class NoiseState(
     /** Wall clock ms when playback should end, 0 when no timer is armed. */
     val timerEndsAt: Long = 0L,
     val remainingSeconds: Int = 0,
-    val loops: List<String> = emptyList(),
 )
 
 /**
@@ -70,9 +64,6 @@ object NoiseController {
     val state: StateFlow<NoiseState> = _state.asStateFlow()
 
     private var appContext: Context? = null
-
-    /** Decoded loop files, keyed by path. Decoding a 2-minute file is not instant. */
-    private val loopCache = HashMap<String, FloatArray>()
 
     fun attach(context: Context) {
         if (appContext == null) {
@@ -171,29 +162,6 @@ object NoiseController {
     private fun buildGenerator(pick: Pick): Generator? = when (pick) {
         Pick.None -> null
         is Pick.Synth -> generatorFor(pick.id)
-        is Pick.Loop -> loopGenerator(pick.path)
-    }
-
-    private fun loopGenerator(path: String): Generator? {
-        loopCache[path]?.let { return LoopGenerator(it) }
-        val pcm = LoopLibrary.decodeMono(File(path)) ?: return null
-        // Two files at ~2 minutes each is about 40 MB of float; that is the practical cap.
-        if (loopCache.size >= 3) loopCache.clear()
-        loopCache[path] = pcm
-        return LoopGenerator(pcm)
-    }
-
-    // --------------------------------------------------------------- loop library
-
-    fun refreshLoops() {
-        scope.launch {
-            val found = LoopLibrary.scan().map { it.absolutePath }
-            _state.value = _state.value.copy(loops = found)
-            // A slot pointing at a file that has since been deleted falls back to silence.
-            val s = _state.value
-            if (s.pickA is Pick.Loop && s.pickA.path !in found) setPick(Slot.A, Pick.None)
-            if (s.pickB is Pick.Loop && s.pickB.path !in found) setPick(Slot.B, Pick.None)
-        }
     }
 
     // -------------------------------------------------------------- sleep timer
@@ -201,7 +169,9 @@ object NoiseController {
     fun setTimer(minutes: Int) {
         _state.value = _state.value.copy(timerMinutes = minutes)
         persist()
-        if (_state.value.playing) armTimer(minutes) else {
+        if (_state.value.playing) {
+            armTimer(minutes)
+        } else {
             _state.value = _state.value.copy(timerEndsAt = 0, remainingSeconds = 0)
         }
     }
