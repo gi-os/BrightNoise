@@ -1,0 +1,60 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      # versionCode is the workflow run number, so every push produces a newer
+      # build and `adb install -r` upgrades in place instead of erroring.
+      - name: Stamp version
+        id: ver
+        run: |
+          RUN=${{ github.run_number }}
+          BASE=$(grep 'versionName' app/build.gradle.kts | head -1 | sed -E 's/.*"([0-9]+\.[0-9]+).*"/\1/')
+          VERSION="${BASE}.${RUN}"
+          sed -i -E "s/versionCode = .*/versionCode = ${RUN}/" app/build.gradle.kts
+          sed -i -E "s/versionName = \".*\"/versionName = \"${VERSION}\"/" app/build.gradle.kts
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          grep -E 'versionCode|versionName' app/build.gradle.kts
+
+      # The DSP is pure Kotlin; these catch an unstable filter before it ships.
+      - name: Unit test the synth engine
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk "LightNoise-v${{ steps.ver.outputs.version }}.apk"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightNoise-apk
+          path: LightNoise-v${{ steps.ver.outputs.version }}.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: LightNoise v${{ steps.ver.outputs.version }}
+          files: LightNoise-v${{ steps.ver.outputs.version }}.apk
+          generate_release_notes: true
+          make_latest: true
