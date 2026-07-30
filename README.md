@@ -6,6 +6,8 @@ a two-layer mixer, and a sleep timer, in a black-and-white UI that matches Light
 Repo name **LightNoise**, launcher label **White Noise**, applicationId
 `com.gios.lightnoise`.
 
+**Current release: v1.0.7** (tag `v1.0.7`).
+
 ## Screenshots
 
 <table>
@@ -185,6 +187,37 @@ only findable by ear:
   leave a quiet bed within 2 % of unity, and release fully within a second.
 
 CI runs the whole suite before it builds the APK.
+
+## Contributing
+
+The DSP layer (`audio/Dsp.kt`, `Sounds.kt`, `LoopGenerator.kt`) has no Android imports on purpose, so
+it runs and is tested on the plain JVM — that's what `./gradlew :app:testDebugUnitTest` exercises.
+Anything that changes a generator's character should come with a test that encodes the specific
+complaint, the way the fan, campfire, and cafe tests do — "sounds wrong" is otherwise only
+findable by ear, and by the time it's noticed it's 3 a.m. and the sound has been playing for an hour.
+Retune loudness by editing the per-generator output gain and re-running the RMS measurement; don't
+reach for the master/limiter to fix a quiet sound. A user loop-file feature (decode arbitrary audio
+from storage) was built and deliberately removed — don't reintroduce it without asking; every sound
+in this app is synthesised, full stop.
+
+## Version history
+
+Every push to `main` publishes a signed release tagged `v1.0.<run number>` (`app/build.gradle.kts`
+keeps `versionName "1.0.0"`; CI stamps the real version from the workflow run number). See
+[`.github/workflows/build.yml`](.github/workflows/build.yml).
+
+- **v1.0.7** (2026-07-29) — Documented that the wheel needs nothing else installed.
+- **v1.0.6** (2026-07-29) — Hardware wheel scrolls the Sounds and Mix tabs.
+- **v1.0.5** (2026-07-28) — Added screenshots and the gi-os collection table to the README.
+- **v1.0.4** (2026-07-28) — Fixed the cafe sound (formant Q down from 7–11 to ~3, F1 floored at
+  430 Hz, 14 quiet talkers instead of two loud ones — the loud pair was what made it sound
+  "demonic"); added a look-ahead output limiter plus 1.7x makeup gain, raising default loudness from
+  −24.6 dBFS to −15.7 dBFS at the default master; pitched the stream sound down about a third.
+- **v1.0.3** (2026-07-28) — Dropped the user loop-file feature, rebuilt the cafe sound from
+  scratch, gave the fan an oscillating sweep, added a launcher icon.
+- **v1.0.2** (2026-07-28) — Pinned the signing certificate and moved to a 4096-bit signing key.
+- **v1.0.1** (2026-07-28) — Initial release: twelve real-time synthesised sounds, two-layer mixer,
+  sleep timer.
 
 ## The gi-os Light App collection
 
