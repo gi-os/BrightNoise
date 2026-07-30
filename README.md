@@ -76,6 +76,24 @@ The mix and timer choice are saved, so the app reopens on whatever you fell asle
 Playback runs in a foreground service with a partial wake lock and survives the screen
 going off; there is a Stop action in the notification shade.
 
+## The wheel
+
+Turning the brightness wheel scrolls the sound list and the mixer. Both are longer than the
+panel, and this is an app you reach for with the lights off — finding a scroll gesture on a
+matte screen in the dark is harder than finding the wheel your thumb is already resting on.
+The timer tab fits, so nothing there answers a notch.
+
+It works because Light patched `/system/usr/keylayout/Generic.kl`: a notch of the
+`Pixart pat9126ja` sensor arrives as an ordinary key event and nothing above the app
+intercepts it. `hw/LightKeys.kt` resolves `WHEEL_CCW` and `WHEEL_CW` by label at runtime and
+falls back to the raw scancode gated on the device name, so a paired keyboard's `r` doesn't
+scroll. Turns only — the click and the camera button belong to
+[LightControl](https://github.com/gi-os/LightControl), which owns them phone-wide and hands
+bare turns down so an app can scroll a notch at a time. Notches are frame-timed into a glide
+rather than applied as they land, and the first notch after a pause waits for a second one to
+confirm it wasn't a stray brush. Both are explained at length in
+[LightNews](https://github.com/gi-os/LightNews#the-wheel-and-the-camera-button).
+
 ## Design notes
 
 - **Plain sideloaded APK, not a LightOS SDK tool.** The `light-sdk` Gradle plugin's

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gios.lightnoise.audio.SoundId
+import com.gios.lightnoise.hw.WheelScroll
 import com.gios.lightnoise.service.NoiseController
 import com.gios.lightnoise.service.NoiseState
 import com.gios.lightnoise.service.Pick
@@ -34,7 +36,11 @@ import com.gios.lightnoise.ui.theme.Dim
 /** Tab 1 — the twelve synthesised sounds. */
 @Composable
 fun SoundsScreen(state: NoiseState, modifier: Modifier = Modifier) {
-    LazyColumn(modifier.fillMaxSize()) {
+    // Twelve sounds do not fit the panel, and this is a screen you reach for in the dark.
+    val listState = rememberLazyListState()
+    WheelScroll(listState)
+
+    LazyColumn(modifier.fillMaxSize(), state = listState) {
         item { ScreenTitle("SOUNDS") }
         items(SoundId.entries.toList(), key = { it.name }) { id ->
             SoundRow(
@@ -52,7 +58,10 @@ fun SoundsScreen(state: NoiseState, modifier: Modifier = Modifier) {
 /** Tab 2 — two layers with independent levels, plus master volume. */
 @Composable
 fun MixScreen(state: NoiseState, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    val scroll = rememberScrollState()
+    WheelScroll(scroll)
+
+    Column(modifier.fillMaxSize().verticalScroll(scroll)) {
         ScreenTitle("LAYER A")
         PickerRow(Slot.A, state.pickA)
         LevelBar(
