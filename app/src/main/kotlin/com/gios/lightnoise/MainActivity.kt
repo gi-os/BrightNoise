@@ -36,6 +36,8 @@ import com.gios.lightnoise.ui.TabBar
 import com.gios.lightnoise.ui.TimerScreen
 import com.gios.lightnoise.ui.TransportBar
 import com.gios.lightnoise.ui.theme.LightNoiseTheme
+import com.gios.lightnoise.report.CrashLog
+import com.gios.lightnoise.report.ReportOverlay
 
 class MainActivity : ComponentActivity() {
 
@@ -71,6 +73,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // First thing, before anything else can throw: the handler chains onto whatever is
+        // already installed and only writes a file, so it is safe this early.
+        CrashLog.install(this)
         NoiseController.attach(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -85,6 +90,10 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalWheelBus provides wheel) {
                     Root()
                 }
+                // Shake to report, the crash offer on next launch, and the app's own noticed
+                // failures. A sibling, not a wrapper — the sheet is its own window, so it covers
+                // the app whether or not it contains it.
+                ReportOverlay()
             }
         }
     }

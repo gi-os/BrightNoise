@@ -3,6 +3,10 @@ name: Build & Release APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/check.yml'
+      - 'signing-fingerprint.txt'
   workflow_dispatch:
 
 permissions:
@@ -39,6 +43,10 @@ jobs:
 
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
+        env:
+          # Shake-to-report posts issues with this. Absent, the build still works —
+          # reports queue on the phone until a build that has the key installs over it.
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
 
       # Android identifies an app by (packageName, signing certificate). A drifting
       # certificate shows up only as "Failure: Invalid" at install time, days later,

@@ -17,7 +17,8 @@ import com.gios.lightnoise.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -56,15 +57,23 @@ class NoiseService : Service() {
         requestFocus()
         acquireWakeLock()
 
-        // The notification carries the timer countdown, so it needs refreshing —
-        // but only every 20 s, since a per-second update would wake the CPU all night.
+        // The countdown is the only part of this notification that moves, and it only moves
+        // when a timer is set. The old version rewrote the notification every 20 s regardless,
+        // so a plain overnight session — no timer, subtext pinned to the fixed string
+        // "Playing" — posted the same notification about 1,400 times before morning, waking
+        // the process out of Doze each time while the playback wakelock was held.
+        //
+        // NoiseController already ticks `remainingSeconds` once a second, but only while a
+        // timer job exists, so watching the state it publishes is enough: with no timer this
+        // collector simply never emits a second time and the loop costs nothing.
         refreshJob?.cancel()
         refreshJob = scope.launch {
-            while (true) {
-                delay(20_000)
-                if (!NoiseController.state.value.playing) break
-                notificationManager().notify(NOTIFICATION_ID, buildNotification())
-            }
+            NoiseController.state
+                .map { it.playing to notificationSubtext() }
+                .distinctUntilChanged()
+                .collect { (playing, _) ->
+                    if (playing) notificationManager().notify(NOTIFICATION_ID, buildNotification())
+                }
         }
         return START_STICKY
     }
@@ -100,6 +109,21 @@ class NoiseService : Service() {
         notificationManager().createNotificationChannel(channel)
     }
 
+    /**
+     * The one line on the notification that can change while playing.
+     *
+     * Pulled out of [buildNotification] so the refresh collector can compare *this* rather
+     * than re-posting whenever any unrelated part of the state changes — volume, mix, the
+     * selected sound. Those are all invisible from the shade.
+     */
+    private fun notificationSubtext(): String {
+        val s = NoiseController.state.value
+        if (s.timerEndsAt <= 0L) return "Playing"
+        val m = s.remainingSeconds / 60
+        val sec = s.remainingSeconds % 60
+        return if (m > 0) "Stops in ${m}m" else "Stops in ${sec}s"
+    }
+
     private fun buildNotification(): Notification {
         val s = NoiseController.state.value
         val open = PendingIntent.getActivity(
@@ -115,13 +139,7 @@ class NoiseService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val sub = if (s.timerEndsAt > 0L) {
-            val m = s.remainingSeconds / 60
-            val sec = s.remainingSeconds % 60
-            if (m > 0) "Stops in ${m}m" else "Stops in ${sec}s"
-        } else {
-            "Playing"
-        }
+        val sub = notificationSubtext()
 
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, CHANNEL)
