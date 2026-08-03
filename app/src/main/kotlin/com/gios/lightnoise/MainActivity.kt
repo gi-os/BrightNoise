@@ -36,8 +36,8 @@ import com.gios.lightnoise.ui.TabBar
 import com.gios.lightnoise.ui.TimerScreen
 import com.gios.lightnoise.ui.TransportBar
 import com.gios.lightnoise.ui.theme.LightNoiseTheme
-import com.gios.lightnoise.report.CrashLog
-import com.gios.lightnoise.report.ReportOverlay
+import com.gios.light.common.report.LightReport
+import com.gios.light.common.report.ReportOverlay
 
 class MainActivity : ComponentActivity() {
 
@@ -75,7 +75,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // First thing, before anything else can throw: the handler chains onto whatever is
         // already installed and only writes a file, so it is safe this early.
-        CrashLog.install(this)
+        LightReport.install(
+            context = this,
+            appName = "LightNoise",
+            label = "noise",
+            token = BuildConfig.REPORT_TOKEN,
+        )
         NoiseController.attach(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

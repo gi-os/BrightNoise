@@ -1,31 +1,44 @@
-## LightNoise v1.1 — Shake to report, and a quieter night
+## LightNoise v1.2 — The shake asks instead of interrupting
 
-**Two changes: the app can file its own bug reports now, and it stops waking the phone up all
-night for a notification that never changes.**
+**Two changes, one of them invisible: shaking the phone no longer throws a report sheet over what
+you were doing, and the reporting code behind it is now a shared library rather than a copy kept
+in this app.**
 
-### The notification was being rewritten 1,400 times a night
+### The shake offers a chip, not a sheet
 
-The playback notification carries a countdown when you set a sleep timer, so it had a loop
-refreshing it every 20 seconds. That loop ran whether or not a timer was set — and without one
-the subtext is the fixed string "Playing". So an ordinary overnight session posted the same
-identical notification about 1,400 times before morning, waking the process out of Doze each
-time, while the playback wakelock was held and the CPU could not idle between them.
+The first version got the shape of the question wrong. A shake is a gesture the phone can
+misread — and the cost of misreading it was paid every single time, because a full-screen sheet
+landed on top of whatever you were looking at to ask about a problem that may not have existed. On
+a 3.92" panel that is a bad trade against a report that might not be real.
 
-It is event-driven now. The controller already ticks the countdown once a second, and only while
-a timer job exists, so the service just watches what it publishes and re-posts when the line that
-shows would actually change. With no timer, that is once. The audio is untouched — this was
-always the notification, never the sound.
+So the offer is small, it sits out of the way, and **silence is an answer**. A shake puts a
+"SEND ERROR?" chip in the bottom corner; ignore it for four seconds and it fades. Nothing is lost
+by ignoring it: an unsent crash log stays on disk and is offered again on the next launch, and a
+failure the app noticed itself will not ask again for an hour. Only a tap opens the sheet.
 
-### Shake the phone to report a bug
+A crash offer stands for eight seconds rather than four. It is the one offer that cannot be
+reconstructed from nothing if you miss it.
 
-Shake twice — there and back, twice — and a sheet comes up. Pick what happened from five chips
-and add a note in your own words if you have something to add. The note is optional but it is the
-part that carries anything, and what you type becomes the title of the issue. The report brings
-the screen you were on, app and firmware versions, free space, heap, and the stack trace if the
-app died the last time you had it open.
+The chip is drawn in its own window rather than placed in the layout, so it lands in the same
+corner in every app regardless of how that app is built, and it cannot swallow a tap meant for
+what is underneath it.
 
-Reports queue on disk before anything is sent. If there is no network they wait on the phone.
+Issue titles now follow the same convention as every other app — `LightNoise v1.2.x — <headline>`,
+labelled `noise` — instead of the `noise: <headline>` this app had invented.
 
-The gesture counts reversals rather than force — setting a phone down hard clears any threshold a
-shake clears, but only a shake *reverses* — so walking with the app open never fires it. The
-accelerometer only runs while you are looking at the app, which for this app is rarely.
+### Reporting is a library now
+
+The eight files under `com.gios.lightnoise.report` are gone. They are
+`com.gios:light-common:1.0.1`, resolved from GitHub Packages and shared with every other app that
+was keeping its own copy of the same code.
+
+Nothing about this is visible on the phone. It matters because a fix to the reporter used to mean
+editing it in ten places and getting eight of them subtly wrong — which is exactly how the
+sheet-instead-of-chip mistake reached ten apps before anyone saw it once.
+
+One thing had to change shape. `BuildConfig` does not cross a library boundary, so the app hands
+its name, its triage label and its report key to `LightReport.install()` at startup rather than the
+reporter reading them out of the build. Skip that call and reporting is simply inert, which is a
+better failure than a reporter filing issues with a blank app name.
+
+Same note field, same queue-to-disk-first behaviour, same gesture tuning.
