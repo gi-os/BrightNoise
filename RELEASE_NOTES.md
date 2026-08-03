@@ -1,31 +1,24 @@
-## LightNoise v1.1 — Shake to report, and a quieter night
+## LightNoise v1.2 — The shake asks instead of interrupting
 
-**Two changes: the app can file its own bug reports now, and it stops waking the phone up all
-night for a notification that never changes.**
+**Shaking the phone no longer throws a sheet over what you were doing. It puts a small
+"SEND ERROR?" chip in the bottom corner, and only tapping that opens the report.**
 
-### The notification was being rewritten 1,400 times a night
+The first version got the shape of the question wrong. A shake is a gesture the phone can
+misread — and the cost of misreading it was paid every single time, because a full-screen sheet
+landed on top of whatever you were reading to ask about a problem that may not have existed. On a
+3.92" panel that is a bad trade against a report that might not be real.
 
-The playback notification carries a countdown when you set a sleep timer, so it had a loop
-refreshing it every 20 seconds. That loop ran whether or not a timer was set — and without one
-the subtext is the fixed string "Playing". So an ordinary overnight session posted the same
-identical notification about 1,400 times before morning, waking the process out of Doze each
-time, while the playback wakelock was held and the CPU could not idle between them.
+So the offer is small, it sits out of the way, and **silence is an answer**. Ignore the chip for
+four seconds and it fades. Nothing is lost by ignoring it: an unsent crash log stays on disk and
+is offered again on the next launch, and a failure the app noticed itself will not ask again for
+an hour. Only the tap costs anything, and only the tap opens the sheet.
 
-It is event-driven now. The controller already ticks the countdown once a second, and only while
-a timer job exists, so the service just watches what it publishes and re-posts when the line that
-shows would actually change. With no timer, that is once. The audio is untouched — this was
-always the notification, never the sound.
+A crash offer stands for eight seconds rather than four. It is the one offer that cannot be
+reconstructed from nothing if you miss it.
 
-### Shake the phone to report a bug
+The chip is drawn in its own window rather than placed in the layout, so it lands in the same
+corner in every app regardless of how that app is built, and it cannot swallow a tap meant for
+what is underneath it.
 
-Shake twice — there and back, twice — and a sheet comes up. Pick what happened from five chips
-and add a note in your own words if you have something to add. The note is optional but it is the
-part that carries anything, and what you type becomes the title of the issue. The report brings
-the screen you were on, app and firmware versions, free space, heap, and the stack trace if the
-app died the last time you had it open.
-
-Reports queue on disk before anything is sent. If there is no network they wait on the phone.
-
-The gesture counts reversals rather than force — setting a phone down hard clears any threshold a
-shake clears, but only a shake *reverses* — so walking with the app open never fires it. The
-accelerometer only runs while you are looking at the app, which for this app is rarely.
+Nothing else about reporting changed — same note field, same queue-to-disk-first behaviour, same
+gesture tuning.
