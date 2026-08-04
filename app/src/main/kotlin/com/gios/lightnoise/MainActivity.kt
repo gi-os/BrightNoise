@@ -25,10 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gios.lightnoise.hw.LightKey
-import com.gios.lightnoise.hw.LightKeys
-import com.gios.lightnoise.hw.LocalWheelBus
-import com.gios.lightnoise.hw.WheelBus
+import com.gios.light.common.hw.LightKey
+import com.gios.light.common.hw.LightKeys
+import com.gios.light.common.hw.LocalWheelBus
+import com.gios.light.common.hw.WheelBus
 import com.gios.lightnoise.service.NoiseController
 import com.gios.lightnoise.ui.MixScreen
 import com.gios.lightnoise.ui.SoundsScreen

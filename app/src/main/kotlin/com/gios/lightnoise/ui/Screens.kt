@@ -26,7 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gios.lightnoise.audio.SoundId
-import com.gios.lightnoise.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import com.gios.lightnoise.service.NoiseController
 import com.gios.lightnoise.service.NoiseState
 import com.gios.lightnoise.service.Pick
