@@ -1,9 +1,9 @@
-# LightNoise
+# BrightNoise
 
 White noise and background sound for the **Light Phone III**. Twelve endless sounds,
 a two-layer mixer, and a sleep timer, in a black-and-white UI that matches LightOS.
 
-Repo name **LightNoise**, launcher label **White Noise**, applicationId
+Repo name **BrightNoise**, launcher label **White Noise**, applicationId
 `com.gios.lightnoise`.
 
 **Current release: v1.0.7** (tag `v1.0.7`).
@@ -34,7 +34,7 @@ The now-playing bar and the tab row stay put on all three screens. Taken on a Li
 Grab the APK from the [latest release](../../releases/latest) and sideload it:
 
 ```bash
-adb install -r LightNoise-v1.0.<run>.apk
+adb install -r BrightNoise-v1.0.<run>.apk
 ```
 
 Every push to `main` publishes a signed release, so `-r` upgrades in place.
@@ -94,10 +94,10 @@ notch after a pause waits for a second one to confirm it wasn't a stray brush. B
 explained at length in
 [LightNews](https://github.com/gi-os/LightNews#the-wheel-and-the-camera-button).
 
-So it needs nothing but LightNoise: the key goes to whichever app has focus, and this one
+So it needs nothing but BrightNoise: the key goes to whichever app has focus, and this one
 handles it. No service to enable, no permission to grant, no root. Turns only, though —
 pressing the wheel in and the camera button are ignored here.
-[LightControl](https://github.com/gi-os/LightControl) is the optional app that gives those a
+[BrightControl](https://github.com/gi-os/BrightControl) is the optional app that gives those a
 use: hold the wheel in and turn to change brightness, tap it for the flashlight, the camera
 button opens the camera, and each of the three is rebindable — tap and hold separately — to any
 app on the phone. It also hands brightness, or a synthetic-swipe scroll, to apps that don't
@@ -106,8 +106,8 @@ passed through to `com.gios.*` on purpose, because a notch at a time inside the 
 than anything a service outside it can imitate.
 
 ```bash
-# Optional: LightControl, for brightness, the flashlight and the camera button
-adb install -r LightControl-v1.0.x.apk
+# Optional: BrightControl, for brightness, the flashlight and the camera button
+adb install -r BrightControl-v1.0.x.apk
 
 # The key service. NOTE: this setting is a list, and this command REPLACES it —
 # if you also run LightVoice's push-to-talk, colon-join both components instead.
@@ -120,14 +120,14 @@ adb shell appops set com.gios.lightcontrol WRITE_SETTINGS allow
 adb shell appops set com.gios.lightcontrol SYSTEM_ALERT_WINDOW allow
 ```
 
-Latest APK: <https://github.com/gi-os/LightControl/releases/latest>
+Latest APK: <https://github.com/gi-os/BrightControl/releases/latest>
 
 ## Design notes
 
 - **Plain sideloaded APK, not a LightOS SDK tool.** The `light-sdk` Gradle plugin's
   dependency allowlist has no audio path of its own and its `BLOCKED_IMPORTS` ban
-  `android.app.*`, which rules out a foreground service. Same conclusion as LightPass
-  and LightTip.
+  `android.app.*`, which rules out a foreground service. Same conclusion as BrightPasses
+  and BrightTip.
 - **Greyscale-only palette.** Selection *inverts* rather than tints — on a matte
   black-and-white panel that is the only state change legible at arm's length in a dark
   room. Akkurat is pulled out of `SystemFonts` so the app matches LightOS chrome.
@@ -147,7 +147,7 @@ Latest APK: <https://github.com/gi-os/LightControl/releases/latest>
   peaks through at exactly 1.0, and its peak follower needs to *hold* for the length of
   the delay line or the gain starts recovering before the peak it is guarding against
   arrives.
-- **`material-icons-extended` is banned** — on LightTip it alone was ~30 MB. `abiFilters`
+- **`material-icons-extended` is banned** — on BrightTip it alone was ~30 MB. `abiFilters`
   is arm64 only.
 - **The launcher icon is a vector adaptive icon with no PNG buckets.** minSdk is 29, so
   every device this installs on supports adaptive icons. Five chunky bars rather than
@@ -225,17 +225,17 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
-| [LightPass](https://github.com/gi-os/LightPass) | Photograph a movie ticket, keep the stub | Plain Android |
+| [BrightPasses](https://github.com/gi-os/BrightPasses) | Photograph a movie ticket, keep the stub | Plain Android |
 | [LightQR](https://github.com/gi-os/LightQR) | QR scanner, plus a browser generator | Plain Android |
-| [LightRSS](https://github.com/gi-os/LightRSS) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
-| [LightNYCSubway](https://github.com/gi-os/LightNYCSubway) | Live MTA subway arrivals | light-sdk fork |
+| [BrightNews](https://github.com/gi-os/BrightNews) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/BrightNews](https://github.com/zachattack323/BrightNews) |
+| [BrightTransit](https://github.com/gi-os/BrightTransit) | Live MTA subway arrivals | light-sdk fork |
 | [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
-| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
-| [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
-| [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
-| [LightFastread](https://github.com/gi-os/LightFastread) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
-| [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
-| **LightNoise** (this repo) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
+| [FogLight](https://github.com/gi-os/FogLight) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
+| [BrightNonogram](https://github.com/gi-os/BrightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
+| [BrightSolitaire](https://github.com/gi-os/BrightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
+| [BrightLibrary](https://github.com/gi-os/BrightLibrary) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [BrightTip](https://github.com/gi-os/BrightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
+| **BrightNoise** (this repo) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
 | [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |
 
 The Light Phone does not sponsor or endorse any of these. Licences vary per repo.
