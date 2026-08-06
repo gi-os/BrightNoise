@@ -34,7 +34,7 @@ The now-playing bar and the tab row stay put on all three screens. Taken on a Li
 Grab the APK from the [latest release](../../releases/latest) and sideload it:
 
 ```bash
-adb install -r BrightNoise-v1.0.<run>.apk
+adb install -r LightNoise-v1.0.<run>.apk
 ```
 
 Every push to `main` publishes a signed release, so `-r` upgrades in place.
@@ -107,7 +107,7 @@ than anything a service outside it can imitate.
 
 ```bash
 # Optional: BrightControl, for brightness, the flashlight and the camera button
-adb install -r BrightControl-v1.0.x.apk
+adb install -r LightControl-v1.0.x.apk
 
 # The key service. NOTE: this setting is a list, and this command REPLACES it —
 # if you also run LightVoice's push-to-talk, colon-join both components instead.
@@ -233,7 +233,7 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 | [FogLight](https://github.com/gi-os/FogLight) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [BrightNonogram](https://github.com/gi-os/BrightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | [BrightSolitaire](https://github.com/gi-os/BrightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
-| [BrightLibrary](https://github.com/gi-os/BrightLibrary) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [LightBooks](https://github.com/gi-os/BrightLibrary) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
 | [BrightTip](https://github.com/gi-os/BrightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
 | **BrightNoise** (this repo) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
 | [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |
