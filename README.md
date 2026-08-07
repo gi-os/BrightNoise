@@ -3,6 +3,17 @@
 White noise and background sound for the **Light Phone III**. Twelve endless sounds,
 a two-layer mixer, and a sleep timer, in a black-and-white UI that matches LightOS.
 
+## Install via BrightMarket
+
+<p align="center">
+  <img src="https://gi-os.github.io/brightmarket-index/assets/brightmarket-qr.png" alt="Scan to open BrightMarket" width="180" />
+</p>
+
+Scan the code above, or visit
+**[gi-os.github.io/brightmarket-index/browse.html](https://gi-os.github.io/brightmarket-index/browse.html)**, to install
+and keep this app updated through **BrightMarket** — no Play Store, no PC
+required.
+
 Repo name **BrightNoise**, launcher label **White Noise**, applicationId
 `com.gios.lightnoise`.
 
