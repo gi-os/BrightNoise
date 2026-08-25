@@ -235,8 +235,6 @@ keeps `versionName "1.0.0"`; CI stamps the real version from the workflow run nu
 
 ## Bright\*
 
-*Twelve sounds synthesised in real time, which is why the app ships no audio files at all.*
-
 26 open-source apps for the **Light Phone III** — camera, music, maps, messages,
 reading, transit, games. The phone has no app store, so they install by sideload: scan one
 code from **[brightmarket.gzl.dev](https://brightmarket.gzl.dev)** and BrightMarket keeps them updated.
