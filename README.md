@@ -1,3 +1,5 @@
+<img src="docs/icon.png" alt="" width="72" align="left" />
+
 # BrightNoise
 
 White noise and background sound for the **Light Phone III**. Twelve endless sounds,
