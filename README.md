@@ -2,6 +2,8 @@
 
 # BrightNoise
 
+[**⬇ Download the latest APK**](https://github.com/gi-os/BrightNoise/releases/latest) · free, open source.
+
 White noise and background sound for the **Light Phone III**. Twelve endless sounds,
 a two-layer mixer, and a sleep timer, in a black-and-white UI that matches LightOS.
 
