@@ -46,9 +46,8 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
         env:
-          # Shake-to-report posts issues with this. Absent, the build still works —
-          # reports queue on the phone until a build that has the key installs over it.
-          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+          # Where shake-to-report posts: a URL, not a secret. Unset, reports queue on the phone.
+          REPORT_RELAY_URL: ${{ vars.REPORT_RELAY_URL }}
 
       # Android identifies an app by (packageName, signing certificate). A drifting
       # certificate shows up only as "Failure: Invalid" at install time, days later,
