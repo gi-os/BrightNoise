@@ -56,10 +56,85 @@ adb install -r LightNoise-v1.0.<run>.apk
 
 Every push to `main` publishes a signed release, so `-r` upgrades in place.
 
-One stable 4096-bit key signs every build (`keystore/lightnoise.jks`, committed on
-purpose) and exactly one APK ships per release, which is what Obtainium needs. The
-certificate SHA-256 is pinned in `signing-fingerprint.txt` and CI fails on drift —
-a changed certificate otherwise surfaces only as `Failure: Invalid` at install time.
+Exactly one APK ships per release, which is what Obtainium needs. It is the release
+variant (not debuggable), signed in CI from `release` environment secrets with APK Signature Scheme
+v3 and a proof of rotation from the original key. The new certificate SHA-256 is pinned
+in `signing-fingerprint.txt` and the original in `signing-lineage-root-fingerprint.txt`;
+CI fails unless the APK's lineage chains one to the other, because a changed certificate
+otherwise surfaces only as `Failure: Invalid` at install time.
+
+`./gradlew :app:assembleRelease` builds an unsigned APK. Debug builds use the standard
+Android debug key, which varies across CI runners; a debug APK cannot update a release
+install. The **Check** workflow tests signing with disposable keys and never publishes.
+
+### Release signing
+
+The original key (`keystore/lightnoise.jks`) and its password were committed, so they
+are public. Removing the file does not remove it from Git history or protect installs
+that still trust it; the fix is to sign with a new key plus a v3 proof of rotation.
+
+Before merging this change, disable [Build & Release APK](https://github.com/gi-os/BrightNoise/actions/workflows/build.yml).
+A push to `main` otherwise publishes. Keep it disabled until the rotation and distribution
+checks below are done and you intend to publish.
+
+In a private directory outside the checkout, use Android Build Tools 35.0.0. Use the
+original key only for the offline rotation step (alias `lightnoise`, store and key
+password `lightnoise`; recover it with
+`git show ceb10875086f:keystore/lightnoise.jks > lightnoise.jks`). Use fresh passwords
+for the new key.
+
+```sh
+umask 077
+keytool -genkeypair -storetype JKS -keystore brightnoise-new.jks -alias brightnoise-release \
+  -keyalg RSA -keysize 3072 -validity 10000
+
+apksigner rotate --out brightnoise.lineage \
+  --old-signer --ks lightnoise.jks --ks-key-alias lightnoise \
+  --set-installed-data true --set-rollback false \
+  --new-signer --ks brightnoise-new.jks --ks-key-alias brightnoise-release
+
+apksigner lineage --in brightnoise.lineage --print-certs
+```
+
+Verify signer #1's SHA-256 digest against `signing-lineage-root-fingerprint.txt` and
+replace `signing-fingerprint.txt` in this PR with signer #2's SHA-256 digest. Do not
+change the original pin. The release won't publish while the pins are still identical.
+
+In [BrightNoise's environment settings](https://github.com/gi-os/BrightNoise/settings/environments),
+create an environment named `release`. Under **Deployment branches and tags**, choose
+**Selected branches and tags** and add a single **Branch** rule for `main`, with no tag
+rules. Add the five secrets below to that environment only. Do not use repository-wide
+secrets or upload the original key or its passwords.
+
+| Secret | Value |
+| --- | --- |
+| `RELEASE_KEYSTORE_BASE64` | Base64-encoded `brightnoise-new.jks` |
+| `SIGNING_LINEAGE_BASE64` | Base64-encoded `brightnoise.lineage` |
+| `KEYSTORE_PASSWORD` | New keystore password |
+| `KEY_ALIAS` | `brightnoise-release` |
+| `KEY_PASSWORD` | New key password |
+
+On Linux, stream the files and enter the passwords at the prompts:
+
+```sh
+base64 -w 0 brightnoise-new.jks | gh secret set RELEASE_KEYSTORE_BASE64 --env release --repo gi-os/BrightNoise
+base64 -w 0 brightnoise.lineage | gh secret set SIGNING_LINEAGE_BASE64 --env release --repo gi-os/BrightNoise
+gh secret set KEYSTORE_PASSWORD --env release --repo gi-os/BrightNoise
+gh secret set KEY_ALIAS --env release --repo gi-os/BrightNoise --body brightnoise-release
+gh secret set KEY_PASSWORD --env release --repo gi-os/BrightNoise
+```
+
+CI supplies only the new private key to `scripts/sign-release.sh` and checks that the APK's
+v3 lineage links both pins, preserves installed data, and disallows signer rollback. API 29+
+does not need v1/v2 signatures.
+
+Before re-enabling publishing, verify an in-place update from the last shipped build to a
+locally signed test APK with a greater `versionCode`. Coordinate the BrightMarket migration:
+add the exact old-to-new `com.gios.lightnoise` handover to
+[the index](https://github.com/gi-os/brightmarket-index/blob/HEAD/scripts/build_index.py)
+and ensure [the updater](https://github.com/gi-os/BrightMarket) accepts the installed
+predecessor for this transition. The index otherwise keeps the old release, and changing
+the catalog pin alone makes the current updater classify old installs as foreign.
 
 ## Sounds
 
