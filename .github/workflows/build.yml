@@ -51,9 +51,8 @@ jobs:
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --stacktrace
         env:
-          # Shake-to-report posts issues with this. Absent, the build still works —
-          # reports queue on the phone until a build that has the key installs over it.
-          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+          # Where shake-to-report posts: a URL, not a secret. Unset, reports queue on the phone.
+          REPORT_RELAY_URL: ${{ vars.REPORT_RELAY_URL }}
 
       # Android identifies an app by (packageName, signing certificate). The script fails
       # unless the APK verifies with the pinned new certificate (signing-fingerprint.txt)
