@@ -14,6 +14,9 @@ permissions:
 
 jobs:
   build:
+    # Signing secrets live only in the `release` environment, which only `main` may use.
+    if: github.ref == 'refs/heads/main'
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,35 +46,52 @@ jobs:
       - name: Unit test the synth engine
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+      # The release variant ships: it is not debuggable, so `run-as` cannot read the app's
+      # data. It is built unsigned and signed below with the rotated key and its lineage.
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease --stacktrace
         env:
           # Shake-to-report posts issues with this. Absent, the build still works —
           # reports queue on the phone until a build that has the key installs over it.
           REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
 
-      # Android identifies an app by (packageName, signing certificate). A drifting
-      # certificate shows up only as "Failure: Invalid" at install time, days later,
-      # so pin it and fail the build here instead. The keystore is committed, which
-      # is what keeps it stable across runners.
-      - name: Verify the signing certificate has not drifted
+      # Android identifies an app by (packageName, signing certificate). The script fails
+      # unless the APK verifies with the pinned new certificate (signing-fingerprint.txt)
+      # and its v3 lineage chains back to the original one
+      # (signing-lineage-root-fingerprint.txt), so existing installs keep updating.
+      - name: Sign and verify release APK
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          SIGNING_LINEAGE_BASE64: ${{ secrets.SIGNING_LINEAGE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          ACTUAL=$("$BT/apksigner" verify --print-certs \
-            app/build/outputs/apk/debug/app-debug.apk \
-            | grep -i 'certificate SHA-256 digest' | head -1 \
-            | sed -E 's/.*[Dd]igest:[[:space:]]*//' | tr -d ' \r' | tr 'A-F' 'a-f')
-          EXPECTED=$(tr -d ' \n\r' < signing-fingerprint.txt | tr 'A-F' 'a-f')
-          echo "expected: $EXPECTED"
-          echo "actual:   $ACTUAL"
-          if [ -z "$ACTUAL" ]; then echo "APK is not signed at all"; exit 1; fi
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "Signing certificate changed — installs would fail with 'Invalid'."
-            exit 1
-          fi
+          for secret in RELEASE_KEYSTORE_BASE64 SIGNING_LINEAGE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ ! ${!secret} =~ [^[:space:]] ]]; then
+              echo "::error::Missing required release signing secret: $secret"
+              exit 1
+            fi
+          done
 
-      - name: Name the APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "LightNoise-v${{ steps.ver.outputs.version }}.apk"
+          umask 077
+          signing_dir=$(mktemp -d "$RUNNER_TEMP/brightnoise-signing.XXXXXX")
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          export KEYSTORE_FILE="$signing_dir/release.jks" SIGNING_LINEAGE_FILE="$signing_dir/release.lineage"
+          decode() {
+            if ! printf '%s' "${!1}" | base64 --decode > "$2" || [[ ! -s "$2" ]]; then
+              echo "::error::$1 must contain non-empty base64"
+              exit 1
+            fi
+          }
+          decode RELEASE_KEYSTORE_BASE64 "$KEYSTORE_FILE"
+          decode SIGNING_LINEAGE_BASE64 "$SIGNING_LINEAGE_FILE"
+          unset RELEASE_KEYSTORE_BASE64 SIGNING_LINEAGE_BASE64
+
+          bash scripts/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk \
+            "LightNoise-v$VERSION.apk" signing-lineage-root-fingerprint.txt signing-fingerprint.txt
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
